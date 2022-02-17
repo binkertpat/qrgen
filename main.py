@@ -4,82 +4,120 @@ import qrcode
 import cv2
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
+import os
 
 
-def generateQR(link, titel = None, fillcolor="black", bgcolor="white", roundPixel=None):
-    errorcorrectionOptions = [qrcode.constants.ERROR_CORRECT_L, qrcode.constants.ERROR_CORRECT_M, qrcode.constants.ERROR_CORRECT_Q, qrcode.constants.ERROR_CORRECT_H]
-    errorcorrection = errorcorrectionOptions[0]
-    size = 2
+def generateQR(datas, titel=None, fillcolor="black", bgcolor="white", roundPixel=None):
+    """
+    Generate a QR-Codes
+
+    Parameters:
+        datas (str): to encoding datas
+        titel (str): name of the generate file
+        fillcolor (str): color of the pixels (black, white, red, ...)
+        bgcolor (str): backgroundcolor (black, white, red, ...)
+        roundPixel (str): rounded rectangles in QR-Code (set a random character)
+
+    Returns:
+        generatedQRCode (jpg): have a look in ./generatedQRCodes
+    """
 
     qr = qrcode.QRCode(
-        version=size,
-        error_correction=errorcorrection,
+        version=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=16,
         border=4,
     )
-    qr.add_data(link)
+    qr.add_data(datas)
     qr.make(fit=True)
 
     if roundPixel is None:
         img = qr.make_image(fill_color=fillcolor, back_color=bgcolor)
     else:
-        img = qr.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(), fill_color=fillcolor, back_color=bgcolor)
+        img = qr.make_image(image_factory=StyledPilImage, module_drawer=RoundedModuleDrawer(), fill_color=fillcolor,
+                            back_color=bgcolor)
 
     datetimenow = datetime.datetime.now()
     if titel is not None:
         img.save("generatedQRcodes/" + titel + ".jpg")
+        print("Generated QR-Codes saved in generatedQRcodes as: " + titel + ".jpg")
     else:
         img.save(datetimenow.strftime("generatedQRcodes/%Y%m%d-%H-%M-%S_generatedQRcode") + ".jpg")
+        print("Generated QR-Codes saved in generatedQRcodes as: " + datetimenow.strftime("%Y%m%d-%H-%M-%S_generatedQRcode") + ".jpg")
 
 
-def readQR(filename=None):
-    img = cv2.imread("C:/Users/Patri/OneDrive/Dokumente/GitHub/qrgen/20220217-14-19-06_generatedQRcode.jpg")
-    detector = cv2.QRCodeDetector()
-    data, bbox, _ = detector.detectAndDecode(img)
-    print("data", data, "bbox", bbox)
-    if bbox is not None:
-        print(f"QRCode data:\n{data}")
-        # display the image with lines
-        # length of bounding box
-        n_lines = len(bbox[0])
+def readQR(directoryName="readQR"):
+    """
+    read QR-Codes from files
 
-        for i in range(0, n_lines):
-            point1 = (int(bbox[0][i][0]), int(bbox[0][i][1]))
-            point2 = (int(bbox[0][(i+1) % n_lines][0]), int(bbox[0][(i+1) % n_lines][1]))
-            cv2.line(img, point1, point2, color=(0, 0, 255), thickness=5)
+    Parameters:
+        directoryName (str): set directory with given QR-Codes
 
-        cv2.imshow("img", img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    Returns:
+        datas (str): print decoded datas to console
+    """
+
+    filesToRead = os.listdir(directoryName)
+    absoluteFilePaths = []
+    for file in filesToRead:
+        absoluteFilePaths.append(os.path.abspath(directoryName + "/" + file))
+
+    for file in absoluteFilePaths:
+        img = cv2.imread(file)
+        detector = cv2.QRCodeDetector()
+        data, boundingbox, _ = detector.detectAndDecode(img)
+        if boundingbox is not None:
+            print("Read QR-Code saved in " + file + ".\nDecoded QR-Code datas:\n" + data)
+            n_lines = len(boundingbox[0])
+            for i in range(0, n_lines):
+                point1 = (int(boundingbox[0][i][0]), int(boundingbox[0][i][1]))
+                point2 = (int(boundingbox[0][(i + 1) % n_lines][0]), int(boundingbox[0][(i + 1) % n_lines][1]))
+                cv2.line(img, point1, point2, color=(0, 0, 255), thickness=5)
+            cv2.imshow("QR-Code saved in " + file, img)
+            if cv2.waitKey(1) == ord(" "):
+                break
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
 
 def liveCapturingQR(args=None):
-    cap = cv2.VideoCapture(0)
-    detector = cv2.QRCodeDetector()
-    while True:
-        _, img = cap.read()
-        # detect and decode
-        data, bbox, _ = detector.detectAndDecode(img)
-        # check if there is a QRCode in the image
-        if bbox is not None:
-            # display the image with lines
-            n_lines = len(bbox[0])
-            for i in range(0, n_lines):
-                point1 = (int(bbox[0][i][0]), int(bbox[0][i][1]))
-                point2 = (int(bbox[0][(i + 1) % n_lines][0]), int(bbox[0][(i + 1) % n_lines][1]))
-                cv2.line(img, point1, point2, color=(0, 0, 255), thickness=5)
-            if data:
-                print("[+] QR Code detected, data:", data)
+    """
+    read QR-Codes live via webcam
 
-        cv2.imshow("img", img)
-        if cv2.waitKey(1) == ord("q"):
+    Returns:
+        datas (str): print decoded datas to console
+        img (img): show webcam live image with marked detected qr-code
+    """
+
+    VideoCaputuringDevice = cv2.VideoCapture(0)
+    detector = cv2.QRCodeDetector()
+
+    tempDecodedDatas = ""
+    while True:
+        _, img = VideoCaputuringDevice.read()
+        data, boundingbox, _ = detector.detectAndDecode(img)
+        if boundingbox is not None:
+            # display the image with lines
+            n_lines = len(boundingbox[0])
+            for i in range(0, n_lines):
+                p1 = (int(boundingbox[0][i][0]), int(boundingbox[0][i][1]))
+                p2 = (int(boundingbox[0][(i + 1) % n_lines][0]), int(boundingbox[0][(i + 1) % n_lines][1]))
+                cv2.line(img, p1, p2, color=(0, 0, 255), thickness=5)
+            if data:
+                if data != tempDecodedDatas:
+                    tempDecodedDatas = data
+                    print("Success! QR-Code detected and read. Decoded datas: \n", data)
+
+        cv2.imshow("QR-Code capturing", img)
+        if cv2.waitKey(1) == ord(" "):
             break
-    cap.release()
+    VideoCaputuringDevice.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     args = sys.argv
-    print(args)
+
     if args[1] == "gen":
         generateQR(*args[2:])
     elif args[1] == "read":
